@@ -1,3 +1,3 @@
 #/bin/sh
-mpicc -o main main.c
-mpirun -np 6 main
+mpicc -o training training.c
+mpirun -np 6 training
