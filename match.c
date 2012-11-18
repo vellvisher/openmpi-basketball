@@ -5,33 +5,34 @@
 #include<math.h>
 #include<string.h>
 
-const int HALF_ROUNDS = 2700;
-const int NUM_PLAYERS = 10;
-const int F0 = 10;
-const int F1 = 11;
-const int FIELD_HEIGHT = 65;
-const int FIELD_WIDTH = 129;
-const int TAG_ROUND_START = 10000;
-const int TAG_PLAYER_SEND = 20000;
-const int TAG_FIELD_STAT = 30000;
-const int TAG_FIELD_SYNC_ADMIN = 40000;
-const int TAG_FIELD_SYNC_PLAYER = 50000;
-const int TAG_FIELD_ROUND_OVER = 60000;
+#define HALF_ROUNDS 2700
+#define NUM_PLAYERS 10
+#define NUM_TEAMS 2
+#define F0 10
+#define F1 11
+#define FIELD_HEIGHT 65
+#define FIELD_WIDTH 129
+#define TAG_ROUND_START 10000
+#define TAG_PLAYER_SEND 20000
+#define TAG_FIELD_STAT 30000
+#define TAG_FIELD_SYNC_ADMIN 40000
+#define TAG_FIELD_SYNC_PLAYER 50000
+#define TAG_FIELD_ROUND_OVER 60000
 
-const int SIZE_PLAYER_RECV = 12;
-const int SIZE_PLAYER_SEND = 6;
-const int SIZE_FIELD_SEND = 3;
+#define SIZE_PLAYER_RECV 12
+#define SIZE_PLAYER_SEND 6
+#define SIZE_FIELD_ADMIN 5
 
-const int INDEX_RANK = 0;
-const int INDEX_NEWX = 1;
-const int INDEX_NEWY = 2;
-const int INDEX_CHALLENGE = 3;
-const int INDEX_BALLX = 4;
-const int INDEX_BALLY = 5;
+#define INDEX_RANK 0
+#define INDEX_NEWX 1
+#define INDEX_NEWY 2
+#define INDEX_CHALLENGE 3
+#define INDEX_BALLX 4
+#define INDEX_BALLY 5
 
-const int INDEX_WINNER_RANK = 0;
+#define INDEX_WINNER_RANK 0
 
-const int FLAG_UPDATED = -1;
+#define FLAG_UPDATED -1
 
 typedef int bool;
 #define true 1
@@ -101,13 +102,13 @@ void playerAction(Player player, int rank) {
     int fieldProcess = 10 + (player.x > 64);
     // Send field process data
     int j;
-    /*
-    printf("In player process before sending to field %d r%d ", fieldProcess, round);
+    
+    //printf("In player process before sending to field %d r%d ", fieldProcess, round);
     for (j = 0; j < SIZE_PLAYER_SEND; j++) {
         printf(" %d", sendbuf[j]);
     }
     printf("\n");
-    */
+    
     MPI_Send(sendbuf, SIZE_PLAYER_SEND, MPI_INT, fieldProcess, TAG_PLAYER_SEND + round, MPI_COMM_WORLD);
     //printf("field process %d accepted my send round%d rank %d\n", fieldProcess, round, rank);
     if (round == HALF_ROUNDS) {
@@ -127,7 +128,7 @@ void fieldAction(int rank, int teamPos[2][5][2], int teamSkill[2][5][3]) {
     int otherFieldRank = 21 - rank;
     int i, j;
     int round = 1;
-    int teamPoints[2] = {0, 0};
+    int teamPoints[NUM_TEAMS] = {0, 0};
     int scorePost[2][2] = {{128, 32}, {0, 32}};
     int side = 0;
     do {
@@ -173,7 +174,6 @@ void fieldAction(int rank, int teamPos[2][5][2], int teamSkill[2][5][3]) {
             //printf("I am field inside %d with playersReceived %d and %d\n", rank, playersReceived[0], outcount);
 
             if (outcount == MPI_UNDEFINED) {
-                printf("rank %d has a undef", rank);
                 outcount = 10 - playersReceived[0];
                 for (i = 0; i < 10; i++) {
                     outIndices[i] = i;
@@ -183,11 +183,12 @@ void fieldAction(int rank, int teamPos[2][5][2], int teamSkill[2][5][3]) {
                 playersReceivedArray[outIndices[i]] = 1;
                 int j = 0;
                 
-                printf("Array of received till now in field %d ", rank);
-                for (j = 0; j < NUM_PLAYERS; j++) {
-                    printf("%d ", playersReceivedArray[j]);
-                }
-                printf("\n");
+                //printf("Array of received till now in field %d ", rank);
+                //for (j = 0; j < NUM_PLAYERS; j++) {
+                //    printf("%d ", playersReceivedArray[j]);
+                //}
+                //printf("\n");
+                
                 
             }
 
@@ -215,8 +216,6 @@ void fieldAction(int rank, int teamPos[2][5][2], int teamSkill[2][5][3]) {
                 //printf("Field 0 told me its done\n");
                 break;
             }
-            //playersReceived[0] += playersOtherReceived[0];
-            //playersOtherReceived[0] = 0;
             if (playersReceived[0] + playersOtherReceived[0] == NUM_PLAYERS) {
                 MPI_Request tempReq;
                 MPI_Isend(playersReceived, 1, MPI_INT, F1, TAG_FIELD_STAT + round, MPI_COMM_WORLD, &tempReq);
@@ -249,7 +248,7 @@ void fieldAction(int rank, int teamPos[2][5][2], int teamSkill[2][5][3]) {
            if (recvbuf[i*SIZE_PLAYER_SEND + INDEX_NEWX] == ballPos[0]
                 && recvbuf[i*SIZE_PLAYER_SEND + INDEX_NEWY] == ballPos[1]) {
                int chall = recvbuf[i*SIZE_PLAYER_SEND + INDEX_CHALLENGE];
-               printf("challenge %d %d\n", chall, i);
+               //printf("challenge %d %d\n", chall, i);
                if (chall > maxBallChallenge) {
                    maxBallChallenge = chall;
                    numReached = 0;
@@ -258,39 +257,34 @@ void fieldAction(int rank, int teamPos[2][5][2], int teamSkill[2][5][3]) {
            }
         }
     }
-    printf("Number reached:%d", numReached);
+    //printf("Number reached:%d", numReached);
     int winnerRank = -1;
     if (numReached > 0) {
         winnerRank = reachedRanks[rand() % numReached];
         int newBallPos[2];
         newBallPos[0] = recvbuf[winnerRank*SIZE_PLAYER_SEND + INDEX_BALLX];
         newBallPos[1] = recvbuf[winnerRank*SIZE_PLAYER_SEND + INDEX_BALLY];
-        printf("winner rank for round %d is %d", round, winnerRank);
-        for (i = 0; i < SIZE_PLAYER_SEND; i++) {
-            printf(" %d", recvbuf[winnerRank*SIZE_PLAYER_SEND + i]);
-        }
-        printf("\n");
+        //printf("winner rank for round %d is %d", round, winnerRank);
+        //for (i = 0; i < SIZE_PLAYER_SEND; i++) {
+        //    printf(" %d", recvbuf[winnerRank*SIZE_PLAYER_SEND + i]);
+        //}
+        //printf("\n");
         int d = abs(recvbuf[winnerRank*SIZE_PLAYER_SEND + INDEX_NEWX] - newBallPos[0]) +
                 abs(recvbuf[winnerRank*SIZE_PLAYER_SEND + INDEX_NEWY] - newBallPos[1]);
         int prob;
         int maxProb = 100;
         int winnerShootSkill = teamSkill[winnerRank/5][winnerRank%5][2];
-            printf("d=%d\n", d);
-            float valp= (0.5*d*sqrt(d) - 0.5);
-            printf("p=%f\n", valp);
-            float numer= (10+90.0*winnerShootSkill);
-            printf("numer=%f\n", numer);
-            printf("prob=%f\n", roundf(numer/valp));
 
         prob = roundf((10+90.0*winnerShootSkill)/(0.5*d*sqrt(d) - 0.5));
         if (prob > maxProb) {
             prob = maxProb;
         }
-        printf("prob od=%d\n", prob);
+
         int val = -1;
         if (prob > 0) {
             val = rand() % (100 / prob);
         }
+
         ballPos[0] = newBallPos[0];
         ballPos[1] = newBallPos[1];
         if (val != 0) {
@@ -312,37 +306,47 @@ void fieldAction(int rank, int teamPos[2][5][2], int teamSkill[2][5][3]) {
             teamPoints[winnerRank/5] += (d > 24) ? 3:2;
         }
     }
-    int adminDetails[3] = {winnerRank, ballPos[0], ballPos[1]};
+    int adminDetails[SIZE_FIELD_ADMIN] = {winnerRank, ballPos[0], ballPos[1], teamPoints[0], teamPoints[1]};
     int recvbuf2[NUM_PLAYERS*SIZE_PLAYER_SEND];
+    int adminDetails2[SIZE_FIELD_ADMIN];
     memset(recvbuf2, 0, NUM_PLAYERS*SIZE_PLAYER_SEND*sizeof(int));
 
     MPI_Request temp, temp2, roundOverRequest;
-    MPI_Isend(adminDetails, 3, MPI_INT, otherFieldRank, TAG_FIELD_SYNC_ADMIN + round, MPI_COMM_WORLD, &temp);
+    MPI_Isend(adminDetails, SIZE_FIELD_ADMIN, MPI_INT, otherFieldRank, TAG_FIELD_SYNC_ADMIN + round, MPI_COMM_WORLD, &temp);
     MPI_Request_free(&temp);
     MPI_Isend(recvbuf, NUM_PLAYERS*SIZE_PLAYER_SEND, MPI_INT, otherFieldRank, TAG_FIELD_SYNC_PLAYER + round, MPI_COMM_WORLD, &temp2);
     MPI_Request_free(&temp2);
 
-    MPI_Recv(adminDetails, 3, MPI_INT, otherFieldRank, TAG_FIELD_SYNC_ADMIN + round, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    MPI_Recv(adminDetails2, SIZE_FIELD_ADMIN, MPI_INT, otherFieldRank, TAG_FIELD_SYNC_ADMIN + round, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
     MPI_Recv(recvbuf2, NUM_PLAYERS*SIZE_PLAYER_SEND, MPI_INT, otherFieldRank, TAG_FIELD_SYNC_PLAYER + round, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
-    if (adminDetails[INDEX_WINNER_RANK] != -1) {
-       winnerRank = adminDetails[INDEX_WINNER_RANK];
-       ballPos[0] = adminDetails[1];
-       ballPos[1] = adminDetails[2];
+    if (adminDetails2[INDEX_WINNER_RANK] != -1) {
+       winnerRank = adminDetails2[INDEX_WINNER_RANK];
+       ballPos[0] = adminDetails2[1];
+       ballPos[1] = adminDetails2[2];
+       teamPoints[0] = adminDetails2[3];
+       teamPoints[1] = adminDetails2[4];
     }
 
     for (i = 0; i < NUM_PLAYERS; i++) {
         if (recvbuf2[i*SIZE_PLAYER_SEND + INDEX_RANK] == FLAG_UPDATED) {
-            printf("Got updated values for rank %d", i);
+            //printf("Got updated values for rank %d", i);
             for (j = 1; j < SIZE_PLAYER_SEND; j++) {
                 recvbuf[i*SIZE_PLAYER_SEND + j] = recvbuf2[i*SIZE_PLAYER_SEND + j];
-                printf("%d ", recvbuf[i*SIZE_PLAYER_SEND + j]);
+                //printf("%d ", recvbuf[i*SIZE_PLAYER_SEND + j]);
             }
-            printf("\n");
+            //printf("\n");
         }
     }
     if (rank == F1) {
         int tempVal[1];
+        int iTeamId, iPlayerId;
+        for (i = 0; i < NUM_PLAYERS; ++i) {
+            iTeamId = i/5;
+            iPlayerId = i%5;
+            teamPos[iTeamId][iPlayerId][0] = recvbuf[i*SIZE_PLAYER_SEND + INDEX_NEWX];
+            teamPos[iTeamId][iPlayerId][1] = recvbuf[i*SIZE_PLAYER_SEND + INDEX_NEWY];
+        }
         MPI_Irecv(tempVal, 1, MPI_INT, F0, TAG_FIELD_ROUND_OVER + round, MPI_COMM_WORLD, &roundOverRequest);
         MPI_Wait(&roundOverRequest, MPI_STATUS_IGNORE);
         round++;
