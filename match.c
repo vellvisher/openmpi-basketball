@@ -16,6 +16,8 @@ const int TAG_PLAYER_SEND = 2;
 const int TAG_FIELD_STAT = 3;
 const int TAG_FIELD_SYNC_ADMIN = 4;
 const int TAG_FIELD_SYNC_PLAYER = 5;
+const int TAG_FIELD_ROUND_OVER = 6;
+
 const int SIZE_PLAYER_RECV = 12;
 const int SIZE_PLAYER_SEND = 7;
 const int SIZE_FIELD_SEND = 3;
@@ -91,11 +93,11 @@ void playerAction(Player player, int rank, int side) {
         player.x += mov*(diffX < 0 ? -1:1);
     } else if (mov <= absDiffY) {
         player.y += mov*(diffY < 0 ? -1:1);
-    } /*else {
+    } else {
         player.x += diffX;
         player.y += (mov - absDiffX)*(diffY < 0 ? -1:1);
     }
-    */
+
 
     sendbuf[INDEX_NEWX] = player.x;
     sendbuf[INDEX_NEWY] = player.y;
@@ -176,10 +178,12 @@ void fieldAction(int rank, int teamPos[2][5][2]) {
             playersReceived[0] += outcount;
             MPI_Request tempReq;
             if (rank == F1) {
-                int tempArray[1] = {outcount};
-                MPI_Isend(tempArray, 1, MPI_INT, F0, TAG_FIELD_STAT, MPI_COMM_WORLD, &tempReq);
+                printf("field %d with playersReceived %d and %d\n", rank, playersReceived[0], outcount);
+                //int tempArray[1] = {playersReceived};
+                MPI_Isend(playersReceived, 1, MPI_INT, F0, TAG_FIELD_STAT, MPI_COMM_WORLD, &tempReq);
                 MPI_Request_free(&tempReq);
-            } else if (playersReceived[0] == NUM_PLAYERS) { //In F0
+            } else if (playersReceived[0] + playersOtherReceived[0] == NUM_PLAYERS) {
+                printf("Field 0 says its done\n");
                 MPI_Isend(playersReceived, 1, MPI_INT, F1, TAG_FIELD_STAT, MPI_COMM_WORLD, &tempReq);
                 MPI_Request_free(&tempReq);
                 break;
@@ -188,11 +192,12 @@ void fieldAction(int rank, int teamPos[2][5][2]) {
         MPI_Test(&otherField, &flag, MPI_STATUS_IGNORE);
         if (flag) {
             if (rank == F1) {
+                printf("Field 0 told me its done\n");
                 break;
             }
-            playersReceived[0] += playersOtherReceived[0];
-            playersOtherReceived[0] = 0;
-            if (playersReceived[0] == NUM_PLAYERS) {
+            //playersReceived[0] += playersOtherReceived[0];
+            //playersOtherReceived[0] = 0;
+            if (playersReceived[0] + playersOtherReceived[0] == NUM_PLAYERS) {
                 MPI_Request tempReq;
                 MPI_Isend(playersReceived, 1, MPI_INT, F1, TAG_FIELD_STAT, MPI_COMM_WORLD, &tempReq);
                 MPI_Request_free(&tempReq);
@@ -213,13 +218,6 @@ void fieldAction(int rank, int teamPos[2][5][2]) {
     int maxBallChallenge = 0;
     for (i = 0; i < NUM_PLAYERS; i++) {
         if (playersReceivedArray[i]) {
-            /*
-            printf("player %d in field %d", i, rank);
-            for (j = 0; j < SIZE_PLAYER_SEND; j++) {
-                printf(" %d", recvbuf[i*SIZE_PLAYER_SEND + j]);
-            }
-            printf("\n");
-            */
            recvbuf[i*SIZE_PLAYER_SEND + INDEX_RANK] = FLAG_UPDATED;
            if (recvbuf[i*SIZE_PLAYER_SEND + INDEX_CHALLENGE] >= maxBallChallenge) {
                int chall = recvbuf[i*SIZE_PLAYER_SEND + INDEX_CHALLENGE];
@@ -276,6 +274,10 @@ void fieldAction(int rank, int teamPos[2][5][2]) {
         printf("sendin to %d\n", F0);
         MPI_Send(adminDetails, 3, MPI_INT, F0, TAG_FIELD_SYNC_ADMIN, MPI_COMM_WORLD);
         MPI_Send(recvbuf, NUM_PLAYERS*SIZE_PLAYER_SEND, MPI_INT, F0, TAG_FIELD_SYNC_PLAYER, MPI_COMM_WORLD);
+        int temp[1];
+        MPI_Recv(temp, 1, MPI_INT, F0, TAG_FIELD_ROUND_OVER, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        round++;
+        printf("Got printing over, %d\n", round);
         continue;
     } else {
         printf("waiting on %d\n", F1);
@@ -322,6 +324,9 @@ void fieldAction(int rank, int teamPos[2][5][2]) {
         printf("\n");
      }
         round++;
+        int temp[1] = {1};
+        MPI_Ssend(temp, 1, MPI_INT, F1, TAG_FIELD_ROUND_OVER, MPI_COMM_WORLD);
+        printf("Sending printing over %d\n", round);
     } while(round <= HALF_ROUNDS);
 }
 
