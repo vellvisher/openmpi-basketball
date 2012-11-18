@@ -10,6 +10,8 @@
 #define NUM_TEAMS 2
 #define F0 10
 #define F1 11
+#define TEAMA 0
+#define TEAMB 0
 #define FIELD_HEIGHT 65
 #define FIELD_WIDTH 129
 #define TAG_ROUND_START 10000
@@ -46,7 +48,20 @@ typedef struct {
     int shoot;
 } Player;
 
-//TODO implement side switch
+int absDist(int x, int y, int a, int b) {
+    return abs(x - a) + abs(y - b);
+}
+
+int calcProb(int skill, int d) {
+    int maxProb = 100;
+
+    int prob = nearbyint((10+90.0*skill)/(0.5*d*sqrt(d) - 0.5));
+    if (prob > maxProb) {
+        prob = maxProb;
+    }
+    return prob;
+}
+
 void playerAction(Player player, int rank) {
     int recvbuf[SIZE_PLAYER_RECV];
     int sendbuf[SIZE_PLAYER_SEND];
@@ -55,6 +70,11 @@ void playerAction(Player player, int rank) {
     int ballPos[2];
     int round = 1;
     int side = 0;
+    int scorePost[2] = {0, 32};
+    if (teamId == TEAMA) {
+        scorePost[0] = 128;
+        scorePost[1] = 32;
+    }
     do {
 
     MPI_Recv(recvbuf, SIZE_PLAYER_RECV, MPI_INT, fieldProvider, TAG_ROUND_START + round, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
@@ -65,7 +85,6 @@ void playerAction(Player player, int rank) {
     sendbuf[INDEX_CHALLENGE] = -1;
     sendbuf[INDEX_BALLX] = -1;
     sendbuf[INDEX_BALLY] = -1;
-    //sendbuf[INDEX_SHOOT] = player.shoot;
 
     int mov = player.speed;
     int diffX = ballPos[0] - player.x;
@@ -80,13 +99,30 @@ void playerAction(Player player, int rank) {
         mov = absDiffX + absDiffY;
         // generate ball challenge to shoot
         sendbuf[INDEX_CHALLENGE] = (rand()%10 + 1)*player.dribble;
-        sendbuf[INDEX_BALLX] = rand()%FIELD_WIDTH;
-        sendbuf[INDEX_BALLY] = rand()%FIELD_HEIGHT;
-        /*
-            TODO
-        sendbuf[6] = newballposx
-        sendbuf[7] = newballposx
-        */
+        int dist = absDist(scorePost[0], scorePost[1], player.x, player.y);
+        int prob = calcProb(player.shoot, dist);
+        if (prob > 1) {
+            // Chance to hoop the ball
+            sendbuf[INDEX_BALLX] = scorePost[0];
+            sendbuf[INDEX_BALLY] = scorePost[1];
+        } else {
+            int minDist = 10000, throwX = -1, throwY = -1;
+            int i;
+            for (i = 2; i < SIZE_PLAYER_RECV; i+=2) {
+                if ((i-2)/2 == rank) continue;
+                int pX = recvbuf[i];
+                int pY = recvbuf[i + 1];
+                int d = absDist(scorePost[0], scorePost[1], pX, pY);
+                if (d < minDist) {
+                    minDist = d;
+                    throwX = pX;
+                    throwY = pY;
+                }
+            }
+
+            sendbuf[INDEX_BALLX] = throwX;
+            sendbuf[INDEX_BALLY] = throwY;
+        }
     } else if (mov <= absDiffX) {
         player.x += mov*(diffX < 0 ? -1:1);
     } else if (mov <= absDiffY) {
@@ -104,15 +140,22 @@ void playerAction(Player player, int rank) {
     int j;
     
     //printf("In player process before sending to field %d r%d ", fieldProcess, round);
-    for (j = 0; j < SIZE_PLAYER_SEND; j++) {
-        printf(" %d", sendbuf[j]);
-    }
-    printf("\n");
+    //for (j = 0; j < SIZE_PLAYER_SEND; j++) {
+    //    printf(" %d", sendbuf[j]);
+    //}
+    //printf("\n");
     
     MPI_Send(sendbuf, SIZE_PLAYER_SEND, MPI_INT, fieldProcess, TAG_PLAYER_SEND + round, MPI_COMM_WORLD);
     //printf("field process %d accepted my send round%d rank %d\n", fieldProcess, round, rank);
     if (round == HALF_ROUNDS) {
         //swap scorePost
+        if (teamId == TEAMA) {
+            scorePost[0] = 0;
+            scorePost[1] = 32;
+        } else {
+            scorePost[0] = 128;
+            scorePost[1] = 32;
+        }
         side = 1;
     }
     round++;
@@ -138,7 +181,6 @@ void fieldAction(int rank, int teamPos[2][5][2], int teamSkill[2][5][3]) {
 
     for (i = 2; i < 12; i+=2) {
         // Put pos of all players in the same team
-        // TODO Fix for F1
         sendbuf[i] = teamPos[teamId][i/2 - 1][0];
         sendbuf[i+1] = teamPos[teamId][i/2 - 1][1];
     }
@@ -264,21 +306,10 @@ void fieldAction(int rank, int teamPos[2][5][2], int teamSkill[2][5][3]) {
         int newBallPos[2];
         newBallPos[0] = recvbuf[winnerRank*SIZE_PLAYER_SEND + INDEX_BALLX];
         newBallPos[1] = recvbuf[winnerRank*SIZE_PLAYER_SEND + INDEX_BALLY];
-        //printf("winner rank for round %d is %d", round, winnerRank);
-        //for (i = 0; i < SIZE_PLAYER_SEND; i++) {
-        //    printf(" %d", recvbuf[winnerRank*SIZE_PLAYER_SEND + i]);
-        //}
-        //printf("\n");
         int d = abs(recvbuf[winnerRank*SIZE_PLAYER_SEND + INDEX_NEWX] - newBallPos[0]) +
                 abs(recvbuf[winnerRank*SIZE_PLAYER_SEND + INDEX_NEWY] - newBallPos[1]);
-        int prob;
-        int maxProb = 100;
         int winnerShootSkill = teamSkill[winnerRank/5][winnerRank%5][2];
-
-        prob = roundf((10+90.0*winnerShootSkill)/(0.5*d*sqrt(d) - 0.5));
-        if (prob > maxProb) {
-            prob = maxProb;
-        }
+        int prob = calcProb(winnerShootSkill, d);
 
         int val = -1;
         if (prob > 0) {
@@ -302,8 +333,10 @@ void fieldAction(int rank, int teamPos[2][5][2], int teamSkill[2][5][3]) {
                 ballPos[0] = 128;
                 ballPos[1] = 64;
             }
-        } else if (ballPos[0] == scorePost[winnerRank/5][0] && ballPos[1] == scorePost[winnerRank/5][1]) {
+        } else {
+            if (ballPos[0] == scorePost[winnerRank/5][0] && ballPos[1] == scorePost[winnerRank/5][1]) {
             teamPoints[winnerRank/5] += (d > 24) ? 3:2;
+            }
         }
     }
     int adminDetails[SIZE_FIELD_ADMIN] = {winnerRank, ballPos[0], ballPos[1], teamPoints[0], teamPoints[1]};
@@ -393,8 +426,8 @@ void main(int argc, char *argv[]) {
     int teamPos[2][5][2] = {{{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}},
                             {{128, 64}, {128, 64}, {128, 64}, {128, 64}, {128, 64}}};
 
-    int teamSkill[2][5][3] = {{{5, 5, 5}, {5, 5, 5}, {5, 5, 5}, {5, 5, 5}, {5, 5, 5}},
-                              {{5, 5, 5}, {5, 5, 5}, {5, 5, 5}, {5, 5, 5}, {5, 5, 5}}};
+    int teamSkill[2][5][3] = {{{2, 6, 7}, {4, 3, 8}, {2, 3, 10}, {3, 6, 6}, {5, 5, 5}},
+                              {{13, 1, 1}, {13, 1, 1}, {13, 1, 1}, {13, 1, 1}, {13, 1, 1}}};
 
     int rank, numtasks, isPlayer, winnerRank;
     int teamA[5] = {0, 1, 2, 3, 4}, teamB[5] = {5, 6, 7, 8, 9};
