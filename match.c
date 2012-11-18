@@ -100,8 +100,14 @@ void playerAction(Player player, int rank, int side) {
     sendbuf[INDEX_NEWX] = player.x;
     sendbuf[INDEX_NEWY] = player.y;
 
-    int fieldProcess = 10 + (player.x < 64);
+    int fieldProcess = 10 + (player.x > 64);
     // Send field process data
+    int j;
+    printf("In player process before sending to field %d  ", fieldProcess);
+    for (j = 0; j < SIZE_PLAYER_SEND; j++) {
+        printf(" %d", sendbuf[j]);
+    }
+    printf("\n");
     MPI_Send(sendbuf, SIZE_PLAYER_SEND, MPI_INT, fieldProcess, TAG_PLAYER_SEND, MPI_COMM_WORLD);
 
     //printf("ball is at %d %d from %d\n", ballPos[0], ballPos[1], rank);
@@ -136,7 +142,7 @@ void fieldAction(int rank, int teamPos[2][5][2]) {
     MPI_Request otherField;
 
     for (i = 0; i < NUM_PLAYERS; i++) {
-        MPI_Irecv(&recvbuf[i*SIZE_PLAYER_SEND], SIZE_PLAYER_SEND, MPI_INT, i, TAG_PLAYER_SEND,
+        MPI_Irecv(recvbuf + i*SIZE_PLAYER_SEND, SIZE_PLAYER_SEND, MPI_INT, i, TAG_PLAYER_SEND,
             MPI_COMM_WORLD, playerReqs + i);
     }
 
@@ -157,7 +163,14 @@ void fieldAction(int rank, int teamPos[2][5][2]) {
 
             for (i = 0; i < outcount; i++) {
                 playersReceivedArray[outIndices[i]] = 1;
-                recvbuf[NUM_PLAYERS*outIndices[i] + INDEX_RANK] = FLAG_UPDATED;
+                /*
+                int j = 0;
+                printf("Array of received till now in field %d", rank);
+                for (j = 0; j < NUM_PLAYERS; j++) {
+                    printf("%d ", playersReceivedArray[j]);
+                }
+                printf("\n");
+                */
             }
 
             playersReceived[0] += outcount;
@@ -185,7 +198,7 @@ void fieldAction(int rank, int teamPos[2][5][2]) {
                 MPI_Request_free(&tempReq);
                 break;
             }
-            MPI_Irecv(playersOtherReceived, 1, MPI_INT, 11 - teamId, TAG_FIELD_STAT, MPI_COMM_WORLD, &otherField);
+            MPI_Irecv(playersOtherReceived, 1, MPI_INT, F1, TAG_FIELD_STAT, MPI_COMM_WORLD, &otherField);
         }
     }
     printf("I am field %d\n", rank);
@@ -200,11 +213,14 @@ void fieldAction(int rank, int teamPos[2][5][2]) {
     int maxBallChallenge = 0;
     for (i = 0; i < NUM_PLAYERS; i++) {
         if (playersReceivedArray[i]) {
+            /*
             printf("player %d in field %d", i, rank);
             for (j = 0; j < SIZE_PLAYER_SEND; j++) {
                 printf(" %d", recvbuf[i*SIZE_PLAYER_SEND + j]);
             }
             printf("\n");
+            */
+           recvbuf[i*SIZE_PLAYER_SEND + INDEX_RANK] = FLAG_UPDATED;
            if (recvbuf[i*SIZE_PLAYER_SEND + INDEX_CHALLENGE] >= maxBallChallenge) {
                int chall = recvbuf[i*SIZE_PLAYER_SEND + INDEX_CHALLENGE];
                if (chall > maxBallChallenge) {
@@ -274,10 +290,10 @@ void fieldAction(int rank, int teamPos[2][5][2]) {
        ballPos[1] = adminDetails[2];
     }
 
-    for (i = 0; i < NUM_PLAYERS*SIZE_PLAYER_SEND; i++) {
-        if (recvbuf2[i*NUM_PLAYERS + INDEX_RANK] == FLAG_UPDATED) {
+    for (i = 0; i < NUM_PLAYERS; i++) {
+        if (recvbuf2[i*SIZE_PLAYER_SEND + INDEX_RANK] == FLAG_UPDATED) {
             for (j = 1; j < SIZE_PLAYER_SEND; j++) {
-                recvbuf[i*NUM_PLAYERS + j] = recvbuf2[i*NUM_PLAYERS + j];
+                recvbuf[i*SIZE_PLAYER_SEND + j] = recvbuf2[i*SIZE_PLAYER_SEND + j];
             }
         }
     }
