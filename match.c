@@ -124,6 +124,7 @@ void fieldAction(int rank, int teamPos[2][5][2], int teamSkill[2][5][3]) {
     int sendbuf[SIZE_PLAYER_RECV];
     int recvbuf[SIZE_PLAYER_SEND*NUM_PLAYERS];
     int teamId = rank - 10;
+    int otherFieldRank = 21 - rank;
     int i, j;
     int round = 1;
     int teamPoints[2] = {0, 0};
@@ -197,6 +198,9 @@ void fieldAction(int rank, int teamPos[2][5][2], int teamSkill[2][5][3]) {
                 //int tempArray[1] = {playersReceived};
                 MPI_Isend(playersReceived, 1, MPI_INT, F0, TAG_FIELD_STAT + round, MPI_COMM_WORLD, &tempReq);
                 MPI_Request_free(&tempReq);
+                if (playersReceived[0] == NUM_PLAYERS) {
+                    MPI_Wait(&otherField, MPI_STATUS_IGNORE);
+                }
             } else if (playersReceived[0] + playersOtherReceived[0] == NUM_PLAYERS) {
                 MPI_Request tempReq;
                 //printf("Field 0 says its done\n");
@@ -311,26 +315,16 @@ void fieldAction(int rank, int teamPos[2][5][2], int teamSkill[2][5][3]) {
     int adminDetails[3] = {winnerRank, ballPos[0], ballPos[1]};
     int recvbuf2[NUM_PLAYERS*SIZE_PLAYER_SEND];
     memset(recvbuf2, 0, NUM_PLAYERS*SIZE_PLAYER_SEND*sizeof(int));
-    if (rank == F1) {
-        //printf("sendin to %d\n", F0);
-        MPI_Request temp, temp2, roundOverRequest;
-        MPI_Isend(adminDetails, 3, MPI_INT, F0, TAG_FIELD_SYNC_ADMIN + round, MPI_COMM_WORLD, &temp);
-        MPI_Request_free(&temp);
-        MPI_Isend(recvbuf, NUM_PLAYERS*SIZE_PLAYER_SEND, MPI_INT, F0, TAG_FIELD_SYNC_PLAYER + round, MPI_COMM_WORLD, &temp2);
-        MPI_Request_free(&temp2);
-        int tempVal[1];
-        MPI_Irecv(tempVal, 1, MPI_INT, F0, TAG_FIELD_ROUND_OVER + round, MPI_COMM_WORLD, &roundOverRequest);
-        MPI_Wait(&roundOverRequest, MPI_STATUS_IGNORE);
-        round++;
-        //printf("Got printing over, %d\n", round);
-        continue;
-    } else {
-        //printf("waiting on %d\n", F1);
-        MPI_Recv(adminDetails, 3, MPI_INT, F1, TAG_FIELD_SYNC_ADMIN + round, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        //printf("waiting2\n");
-        MPI_Recv(recvbuf2, NUM_PLAYERS*SIZE_PLAYER_SEND, MPI_INT, F1, TAG_FIELD_SYNC_PLAYER + round, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-    }
-    //printf("This is the Printing boss %d\n", rank);
+
+    MPI_Request temp, temp2, roundOverRequest;
+    MPI_Isend(adminDetails, 3, MPI_INT, otherFieldRank, TAG_FIELD_SYNC_ADMIN + round, MPI_COMM_WORLD, &temp);
+    MPI_Request_free(&temp);
+    MPI_Isend(recvbuf, NUM_PLAYERS*SIZE_PLAYER_SEND, MPI_INT, otherFieldRank, TAG_FIELD_SYNC_PLAYER + round, MPI_COMM_WORLD, &temp2);
+    MPI_Request_free(&temp2);
+
+    MPI_Recv(adminDetails, 3, MPI_INT, otherFieldRank, TAG_FIELD_SYNC_ADMIN + round, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    MPI_Recv(recvbuf2, NUM_PLAYERS*SIZE_PLAYER_SEND, MPI_INT, otherFieldRank, TAG_FIELD_SYNC_PLAYER + round, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+
     if (adminDetails[INDEX_WINNER_RANK] != -1) {
        winnerRank = adminDetails[INDEX_WINNER_RANK];
        ballPos[0] = adminDetails[1];
@@ -346,6 +340,13 @@ void fieldAction(int rank, int teamPos[2][5][2], int teamSkill[2][5][3]) {
             }
             printf("\n");
         }
+    }
+    if (rank == F1) {
+        int tempVal[1];
+        MPI_Irecv(tempVal, 1, MPI_INT, F0, TAG_FIELD_ROUND_OVER + round, MPI_COMM_WORLD, &roundOverRequest);
+        MPI_Wait(&roundOverRequest, MPI_STATUS_IGNORE);
+        round++;
+        continue;
     }
     // Printing function
     printf("%d\n", round);
@@ -377,9 +378,8 @@ void fieldAction(int rank, int teamPos[2][5][2], int teamSkill[2][5][3]) {
         scorePost[1][0] = 128;
         scorePost[1][1] = 32;
     }
-        int temp[1] = {1};
-        MPI_Send(temp, 1, MPI_INT, F1, TAG_FIELD_ROUND_OVER + round, MPI_COMM_WORLD);
-        MPI_Send(temp, 1, MPI_INT, F1, TAG_FIELD_ROUND_OVER + round, MPI_COMM_WORLD);
+        int tempVal[1] = {1};
+        MPI_Send(tempVal, 1, MPI_INT, F1, TAG_FIELD_ROUND_OVER + round, MPI_COMM_WORLD);
         round++;
         //printf("Sending printing over %d\n", round);
     } while(round <= 2*HALF_ROUNDS);
