@@ -45,7 +45,6 @@ typedef struct {
 } Player;
 
 void playerAction(Player player, int rank, int side) {
-    printf("before game p%d is %d %d %d", rank, player.speed, player.dribble, player.shoot);
     int recvbuf[SIZE_PLAYER_RECV];
     int sendbuf[SIZE_PLAYER_SEND];
     int teamId = rank / 5;
@@ -54,7 +53,7 @@ void playerAction(Player player, int rank, int side) {
     do {
 
     MPI_Recv(recvbuf, SIZE_PLAYER_RECV, MPI_INT, fieldProvider, TAG_ROUND_START, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-    printf("got a recevie %d\n", rank);
+    //printf("got a recevie %d\n", rank);
     ballPos[0] = recvbuf[0];
     ballPos[1] = recvbuf[1];
 
@@ -130,7 +129,7 @@ void fieldAction(int rank, int teamPos[2][5][2]) {
     // Send to one team
     for (i = 0; i < 5; i++) {
         MPI_Request tempReq;
-        MPI_Isend(&sendbuf, SIZE_PLAYER_RECV, MPI_INT, 5*teamId + i, TAG_ROUND_START, MPI_COMM_WORLD, &tempReq);
+        MPI_Isend(sendbuf, SIZE_PLAYER_RECV, MPI_INT, 5*teamId + i, TAG_ROUND_START, MPI_COMM_WORLD, &tempReq);
         MPI_Request_free(&tempReq);
     }
     MPI_Request playerReqs[NUM_PLAYERS];
@@ -138,7 +137,7 @@ void fieldAction(int rank, int teamPos[2][5][2]) {
 
     for (i = 0; i < NUM_PLAYERS; i++) {
         MPI_Irecv(&recvbuf[i*SIZE_PLAYER_SEND], SIZE_PLAYER_SEND, MPI_INT, i, TAG_PLAYER_SEND,
-            MPI_COMM_WORLD, &playerReqs[i]);
+            MPI_COMM_WORLD, playerReqs + i);
     }
 
     int playersReceived[1] = {0};
@@ -165,7 +164,7 @@ void fieldAction(int rank, int teamPos[2][5][2]) {
             MPI_Request tempReq;
             if (rank == F1) {
                 int tempArray[1] = {outcount};
-                MPI_Isend(&outcount, 1, MPI_INT, F0, TAG_FIELD_STAT, MPI_COMM_WORLD, &tempReq);
+                MPI_Isend(tempArray, 1, MPI_INT, F0, TAG_FIELD_STAT, MPI_COMM_WORLD, &tempReq);
                 MPI_Request_free(&tempReq);
             } else if (playersReceived[0] == NUM_PLAYERS) { //In F0
                 MPI_Isend(playersReceived, 1, MPI_INT, F1, TAG_FIELD_STAT, MPI_COMM_WORLD, &tempReq);
@@ -182,11 +181,11 @@ void fieldAction(int rank, int teamPos[2][5][2]) {
             playersOtherReceived[0] = 0;
             if (playersReceived[0] == NUM_PLAYERS) {
                 MPI_Request tempReq;
-                MPI_Isend(&playersReceived, 1, MPI_INT, F1, TAG_FIELD_STAT, MPI_COMM_WORLD, &tempReq);
+                MPI_Isend(playersReceived, 1, MPI_INT, F1, TAG_FIELD_STAT, MPI_COMM_WORLD, &tempReq);
                 MPI_Request_free(&tempReq);
                 break;
             }
-            MPI_Irecv(&playersOtherReceived, 1, MPI_INT, 11 - teamId, TAG_FIELD_STAT, MPI_COMM_WORLD, &otherField);
+            MPI_Irecv(playersOtherReceived, 1, MPI_INT, 11 - teamId, TAG_FIELD_STAT, MPI_COMM_WORLD, &otherField);
         }
     }
     printf("I am field %d\n", rank);
@@ -311,43 +310,14 @@ void fieldAction(int rank, int teamPos[2][5][2]) {
 }
 
 void main(int argc, char *argv[]) {
-    /*
-    int* teamAPos;// = alloc_2d_init(5, 2);
-    int teamBPos = alloc_2d_init(5, 2);
-    int teamASkill = alloc_2d_init(5, 3);
-    int teamBSkill = alloc_2d_init(5, 3);
-
-    teamAPos[0][0] = teamAPos[1][0] = teamAPos[2][0] = teamAPos[3][0] = teamAPos[4][0] = 0;
-    teamAPos[0][1] = teamAPos[1][1] = teamAPos[2][1] = teamAPos[3][1] = teamAPos[4][1] = 0;
-
-    teamBPos[0][0] = teamBPos[1][0] = teamBPos[2][0] = teamBPos[3][0] = teamBPos[4][0] = 128;
-    teamBPos[0][1] = teamBPos[1][1] = teamBPos[2][1] = teamBPos[3][1] = teamBPos[4][1] = 64;
-
-    teamASkill[0][0] = teamASkill[1][0] = teamASkill[2][0] = teamASkill[3][0] = teamASkill[4][0] = 5;
-    teamASkill[0][1] = teamASkill[1][1] = teamASkill[2][1] = teamASkill[3][1] = teamASkill[4][1] = 5;
-    teamASkill[0][3] = teamASkill[1][3] = teamASkill[2][1] = teamASkill[3][1] = teamASkill[4][3] = 5;
-
-    teamBSkill[0][0] = teamBSkill[1][0] = teamBSkill[2][0] = teamBSkill[3][0] = teamBSkill[4][0] = 5;
-    teamBSkill[0][1] = teamBSkill[1][1] = teamBSkill[2][1] = teamBSkill[3][1] = teamBSkill[4][1] = 5;
-    teamBSkill[0][3] = teamBSkill[1][3] = teamBSkill[2][1] = teamBSkill[3][1] = teamBSkill[4][3] = 5;
-    */
     int teamPos[2][5][2] = {{{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}},
                             {{128, 64}, {128, 64}, {128, 64}, {128, 64}, {128, 64}}};
 
     int teamSkill[2][5][3] = {{{5, 5, 5}, {5, 5, 5}, {5, 5, 5}, {5, 5, 5}, {5, 5, 5}},
                               {{5, 5, 5}, {5, 5, 5}, {5, 5, 5}, {5, 5, 5}, {5, 5, 5}}};
 
-    /*
-    teamAPos = (int*)teamPos[0];
-    teamBPos = (int*)teamPos[1];
-
-    teamASkill = (int*)teamSkill[0];
-    teamBSkill = (int*)teamSkill[1];
-    */
     int rank, numtasks, isPlayer, winnerRank;
     int teamA[5] = {0, 1, 2, 3, 4}, teamB[5] = {5, 6, 7, 8, 9};
-    int ballPos[2];
-    int withBall;
 
     MPI_Group orig_group, new_group;
     MPI_Comm teamComm;
@@ -372,12 +342,12 @@ void main(int argc, char *argv[]) {
 
     isPlayer = rank < 10;
     int round = 1;
-    int playerNum = rank % 5;
     srand(time(NULL) + rank);
     Player player;
 
     if (isPlayer) {
        int teamId = rank/5;
+       int playerNum = rank % 5;
        player.x = teamPos[teamId][playerNum][0];
        player.y = teamPos[teamId][playerNum][1];
        player.speed = teamSkill[teamId][playerNum][0];
