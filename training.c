@@ -3,12 +3,11 @@
 #include<stdlib.h>
 #include<time.h>
 
-//const int TRAINING_ROUNDS = 900;
 const int TRAINING_ROUNDS = 900;
 const int NUM_PLAYERS = 5;
 const int FIELD = 0;
-const int FIELD_HEIGHT = 64;
-const int FIELD_WIDTH = 128;
+const int FIELD_HEIGHT = 65;
+const int FIELD_WIDTH = 129;
 
 typedef int bool;
 #define true 1
