@@ -278,14 +278,14 @@ void fieldAction(int rank, int teamPos[2][5][2], int teamSkill[2][5][3]) {
         int winnerShootSkill = teamSkill[winnerRank/5][winnerRank%5][2];
         int prob = calcProb(winnerShootSkill, d);
 
-        int val = -1;
+        int hit = -1;
         if (prob > 0) {
-            val = rand() % (100 / prob);
+            hit = rand() % (100 / prob);
         }
 
         ballPos[0] = newBallPos[0];
         ballPos[1] = newBallPos[1];
-        if (val != 0) {
+        if (hit != 0) {
             // Random 8
             int x8 = rand() % 8 + 1;
             int y8 = rand() % 8 + 1;
@@ -302,7 +302,9 @@ void fieldAction(int rank, int teamPos[2][5][2], int teamSkill[2][5][3]) {
             }
         } else {
             if (ballPos[0] == scorePost[winnerRank/5][0] && ballPos[1] == scorePost[winnerRank/5][1]) {
-            teamPoints[winnerRank/5] += (d > 24) ? 3:2;
+                ballPos[0] = 64;
+                ballPos[1] = 32;
+                teamPoints[winnerRank/5] += (d > 24) ? 3:2;
             }
         }
     }
@@ -372,7 +374,7 @@ void fieldAction(int rank, int teamPos[2][5][2], int teamSkill[2][5][3]) {
             printf("-1 -1");
         }
         printf("\n");
-     }
+    }
     if (round == HALF_ROUNDS) {
         scorePost[0][0] = 0;
         scorePost[0][1] = 32;
@@ -386,11 +388,13 @@ void fieldAction(int rank, int teamPos[2][5][2], int teamSkill[2][5][3]) {
 }
 
 void main(int argc, char *argv[]) {
+    //time_t start, end;
+    //time(&start);
     int teamPos[2][5][2] = {{{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}},
                             {{128, 64}, {128, 64}, {128, 64}, {128, 64}, {128, 64}}};
 
     int teamSkill[2][5][3] = {{{2, 6, 7}, {4, 3, 8}, {2, 3, 10}, {3, 6, 6}, {5, 5, 5}},
-                              {{13, 1, 1}, {13, 1, 1}, {13, 1, 1}, {13, 1, 1}, {13, 1, 1}}};
+    			      {{2, 6, 7}, {4, 3, 8}, {2, 3, 10}, {3, 6, 6}, {5, 5, 5}}};
 
     int rank, numtasks, isPlayer, winnerRank;
     int teamA[5] = {0, 1, 2, 3, 4}, teamB[5] = {5, 6, 7, 8, 9};
@@ -418,4 +422,6 @@ void main(int argc, char *argv[]) {
     }
 
     MPI_Finalize();
+    //time(&end);
+    //printf("%lf", difftime(end, start));
 }

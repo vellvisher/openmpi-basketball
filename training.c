@@ -8,6 +8,8 @@ const int NUM_PLAYERS = 5;
 const int FIELD = 0;
 const int FIELD_HEIGHT = 65;
 const int FIELD_WIDTH = 129;
+#define SIZE_PLAYER_SEND 8
+const int INDEX_PASSES = 7;
 
 typedef int bool;
 #define true 1
@@ -25,8 +27,8 @@ void main(int argc, char *argv[]) {
     int rank, numtasks, isPlayer, winnerRank;
     int ballPos[2];
     int withBall;
-    int sendbuf[8];
-    int recvbuf[8*NUM_PLAYERS];
+    int sendbuf[SIZE_PLAYER_SEND];
+    int recvbuf[SIZE_PLAYER_SEND*NUM_PLAYERS];
     MPI_Init(&argc, &argv);
     // MPI_Comm_size(MPI_COMM_WORLD, &numtasks);
     // 0 rank is always the field process
@@ -85,13 +87,13 @@ void main(int argc, char *argv[]) {
         sendbuf[4] = withBall;
         sendbuf[5] = player.feet;
         sendbuf[6] = player.reaches;
-        sendbuf[7] = player.passes;
+        sendbuf[INDEX_PASSES] = player.passes;
 
-        MPI_Gather(&sendbuf, 8, MPI_INT, &recvbuf, 8, MPI_INT, FIELD, MPI_COMM_WORLD);
+        MPI_Gather(&sendbuf, SIZE_PLAYER_SEND, MPI_INT, &recvbuf, SIZE_PLAYER_SEND, MPI_INT, FIELD, MPI_COMM_WORLD);
         if (!isPlayer) {
             int i, j, numReached = 0;
             for (i = 1; i < NUM_PLAYERS + 1; i++) {
-                if (recvbuf[4 + i*8]) {
+                if (recvbuf[4 + i*SIZE_PLAYER_SEND]) {
                     reachedRanks[numReached] = i;
                     ++numReached;
                 }
@@ -107,7 +109,7 @@ void main(int argc, char *argv[]) {
                 }
                 ballPos[0] = newX;
                 ballPos[1] = newY;
-                ++recvbuf[7 + winnerRank*8];
+                ++recvbuf[INDEX_PASSES + winnerRank*SIZE_PLAYER_SEND];
 
             } else {
                 winnerRank = -1;
@@ -118,18 +120,18 @@ void main(int argc, char *argv[]) {
             for (i = 1; i < NUM_PLAYERS+1; ++i) {
                 printf("%d ", i - 1); // Player number
                 for (j = 0; j < 5; ++j)
-                    printf("%d ", recvbuf[j + i*8]);
+                    printf("%d ", recvbuf[j + i*SIZE_PLAYER_SEND]);
                 printf("%d ", i == winnerRank);
                 for (j = 5; j < 8; ++j)
-                    printf("%d ", recvbuf[j + i*8]);
+                    printf("%d ", recvbuf[j + i*SIZE_PLAYER_SEND]);
                 printf("\n");
             }
 
         }
 
-        MPI_Scatter(&recvbuf, 8, MPI_INT, &sendbuf, 8, MPI_INT, FIELD, MPI_COMM_WORLD);
+        MPI_Scatter(&recvbuf, SIZE_PLAYER_SEND, MPI_INT, &sendbuf, SIZE_PLAYER_SEND, MPI_INT, FIELD, MPI_COMM_WORLD);
         if (isPlayer) {
-            player.passes = sendbuf[7];
+            player.passes = sendbuf[INDEX_PASSES];
         }
         MPI_Barrier(MPI_COMM_WORLD);
 
